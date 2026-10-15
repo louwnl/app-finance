@@ -31,6 +31,7 @@ jobs:
       - name: Préparer le projet Android
         run: |
           npm run web
+          sed -i "s/__APP_VERSION__/1.0.${{ github.run_number }}/" www/index.html
           npx cap add android
           cp -r android-res/* android/app/src/main/res/
           find android/app/src/main/res -path '*drawable-*' -name splash.png -delete

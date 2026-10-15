@@ -2,7 +2,7 @@
 
 App téléphone pour faire ses comptes : comprendre l'historique, puis prévoir les dépenses à venir.
 
-- **Comptes** : tu donnes le solde de chaque compte à une date que tu connais, puis tu déclares tes opérations avant et après. Le solde est recalculé jour par jour.
+- **Comptes** : tu donnes le solde de chaque compte à une date que tu connais et son découvert autorisé, puis tu déclares tes opérations avant et après. Le solde est recalculé jour par jour.
 - **Échéancier** : prêts (étudiants, renouvelable, conso), salaire, aide familiale, APL, charges fixes et achats PayPal en 4 fois. Leurs prélèvements sont ajoutés automatiquement, sur le passé comme sur le futur. Un mois différent se corrige en touchant la ligne.
 - **Analyse** : évolution du solde, dépenses par catégorie, part des revenus partie en crédits, mois dans le rouge.
 - **Prévisions** : solde prévu jusqu'à 2 ans, date d'un éventuel découvert, fins de crédits.
@@ -11,7 +11,7 @@ App téléphone pour faire ses comptes : comprendre l'historique, puis prévoir 
 
 Sur ton téléphone, télécharge le dernier APK : https://github.com/louwnl/app-finance/releases/latest/download/mes-comptes.apk
 
-Ouvre le fichier téléchargé. La première fois, Android demande d'autoriser l'installation depuis ton navigateur ou ton gestionnaire de fichiers : accepte, puis touche **Installer**. Pour une mise à jour, refais la même chose : la nouvelle version s'installe par-dessus et garde tes données.
+Ouvre le fichier téléchargé. La première fois, Android demande d'autoriser l'installation depuis ton navigateur ou ton gestionnaire de fichiers : accepte, puis touche **Installer**. Ensuite, l'app vérifie elle-même s'il existe une nouvelle version : un bandeau « Mettre à jour » apparaît sur l'accueil, et le bouton « Rechercher une mise à jour » est en bas de l'accueil. La nouvelle version s'installe par-dessus et garde tes données.
 
 Chaque modification fusionnée dans `main` compile un nouvel APK et le publie dans les Releases du dépôt (workflow `.github/workflows/android.yml`).
 
