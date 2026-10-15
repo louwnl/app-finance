@@ -1,0 +1,18 @@
+{
+  "name": "mes-comptes",
+  "version": "1.0.0",
+  "private": true,
+  "description": "App de comptes personnelle, web et Android",
+  "scripts": {
+    "web": "rm -rf www && mkdir www && cp -r index.html manifest.webmanifest sw.js icons www/"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/filesystem": "8.1.5",
+    "@capacitor/share": "8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}
