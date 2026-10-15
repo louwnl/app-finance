@@ -202,6 +202,8 @@ const ui={tab:"home",month:TODAY.slice(0,7),accF:"all",year:"all",hz:6,lastDate:
 try{const t=localStorage.getItem("mc-tab");if(t)ui.tab=t}catch(e){}
 
 const LKEY="mes-comptes-v1";
+// Dans l'APK Android, Capacitor fournit window.Capacitor et ses plugins natifs.
+const NATIVE=!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());
 function saveLocal(){try{localStorage.setItem(LKEY,JSON.stringify(S))}catch(e){}}
 const queues={};
 function enqueue(key,fn){queues[key]=(queues[key]||Promise.resolve()).then(fn).catch(e=>{console.warn(e);setSync(e&&e.code==="quota_exceeded"?"Stockage plein : supprime d'anciennes opérations":"Échec d'enregistrement, réessaie")});return queues[key]}
@@ -217,7 +219,7 @@ async function boot(){
   render();
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
   document.addEventListener("visibilitychange",()=>{if(document.visibilityState!=="visible")return;const t=iso(new Date());if(t!==TODAY){TODAY=t;ui.month=t.slice(0,7);amortCache.clear();render()}});
-  if("serviceWorker" in navigator&&location.protocol!=="file:")navigator.serviceWorker.register("sw.js").catch(()=>{});
+  if(!NATIVE&&"serviceWorker" in navigator&&location.protocol!=="file:")navigator.serviceWorker.register("sw.js").catch(()=>{});
 }
 
 /* ---------- échéances générées ---------- */
@@ -603,6 +605,11 @@ function demoState(){
 async function doExport(){
   const data=JSON.stringify({app:"mes-comptes",version:1,exported:new Date().toISOString(),...cfgBody(),months:S.months},null,1);
   const name="mes-comptes-"+TODAY+".json",blob=new Blob([data],{type:"application/json"});
+  if(NATIVE){const P=window.Capacitor.Plugins;
+    try{const w=await P.Filesystem.writeFile({path:name,data,directory:"CACHE",encoding:"utf8"});
+      await P.Share.share({title:"Sauvegarde Mes Comptes",files:[w.uri]});markExport()}
+    catch(e){if(!/cancel/i.test(String(e&&e.message)))toast("Export impossible pour le moment")}
+    return}
   try{const file=new File([blob],name,{type:"application/json"});
     if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:"Sauvegarde Mes Comptes"});markExport();return}}catch(e){if(e&&e.name==="AbortError")return}
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);markExport();

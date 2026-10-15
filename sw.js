@@ -1,5 +1,5 @@
 // Garde l'app disponible hors connexion. Change VERSION à chaque mise à jour des fichiers.
-const VERSION = "mes-comptes-v1";
+const VERSION = "mes-comptes-v2";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {

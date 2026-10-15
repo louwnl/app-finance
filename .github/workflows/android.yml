@@ -1,0 +1,76 @@
+name: APK Android
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Préparer le projet Android
+        run: |
+          npm run web
+          npx cap add android
+          cp -r android-res/* android/app/src/main/res/
+          find android/app/src/main/res -path '*drawable-*' -name splash.png -delete
+          sed -i "s/versionCode 1$/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
+          npx cap sync android
+
+      - name: Compiler
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Signer
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > signing.jks
+          else
+            echo "::warning::Secrets ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD absents : APK signé avec une clé temporaire, les mises à jour demanderont de désinstaller l'app."
+            export KS_PASS=temporaire
+            keytool -genkeypair -keystore signing.jks -alias mescomptes -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$KS_PASS" -keypass "$KS_PASS" -dname "CN=Mes Comptes"
+          fi
+          BT="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          "$BT/zipalign" -f -p 4 android/app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks signing.jks --ks-key-alias mescomptes \
+            --ks-pass env:KS_PASS --key-pass env:KS_PASS --out mes-comptes.apk aligned.apk
+          "$BT/apksigner" verify mes-comptes.apk
+          rm -f signing.jks
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mes-comptes-apk
+          path: mes-comptes.apk
+
+      - name: Publier la version
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Mes Comptes 1.0.${{ github.run_number }}
+          files: mes-comptes.apk
+          make_latest: true

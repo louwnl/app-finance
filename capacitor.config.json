@@ -1,0 +1,8 @@
+{
+  "appId": "com.louwnl.mescomptes",
+  "appName": "Mes Comptes",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#eef1f6"
+  }
+}
