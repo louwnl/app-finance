@@ -88,6 +88,8 @@ button.row{width:100%;background:none;border-left:0;border-right:0;border-bottom
 .btn.sm{padding:6px 10px;font-size:13px}
 .btns{display:flex;flex-wrap:wrap;gap:8px}
 .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.chk{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;padding:4px 0}
+.chk input{width:20px;height:20px;accent-color:var(--accent)}
 .chip{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:6px 12px;font-size:13px;font-weight:600;white-space:nowrap;color:var(--ink-2)}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .mnav{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -185,7 +187,7 @@ const num=v=>{if(v==null)return NaN;const s=String(v).replace(/\s|€/g,"").repl
 const lastDayOfMonth=k=>{const[y,m]=k.split("-").map(Number);return k+"-"+pad(dim(y,m-1))};
 
 const CATS=[
- {id:"salaire",n:"Salaire",in:1},{id:"aide",n:"Aide familiale",in:1},{id:"apl",n:"APL",in:1},{id:"autre_rev",n:"Autre revenu",in:1},
+ {id:"salaire",n:"Salaire",in:1},{id:"aide",n:"Aide familiale",in:1},{id:"apl",n:"APL",in:1},{id:"autre_rev",n:"Autre revenu",in:1},{id:"rembours",n:"Remboursement reçu",in:1},
  {id:"logement",n:"Loyer & charges"},{id:"courses",n:"Courses"},{id:"resto",n:"Restos & sorties"},{id:"transport",n:"Transport"},
  {id:"abos",n:"Abonnements & téléphone"},{id:"sante",n:"Santé"},{id:"shopping",n:"Shopping"},{id:"loisirs",n:"Loisirs"},{id:"frais",n:"Frais bancaires & agios"},
  {id:"pret_etu",n:"Prêt étudiant",cr:1},{id:"renouv",n:"Crédit renouvelable",cr:1},{id:"conso",n:"Crédit conso",cr:1},{id:"paypal",n:"PayPal 4x",cr:1},
@@ -336,7 +338,7 @@ function opRow(o,showDate){
   const isIn=o.amt>0&&o.cat!=="virement",cr=CAT[o.cat]?.cr;
   const sub=[CAT[o.cat]?.n||"",o.cat==="virement"&&o.to?accName(o.acc)+" → "+accName(o.to):accName(o.acc)];
   if(showDate)sub.unshift(fdate(o.d));
-  const badge=o.est?'<span class="pill w">estimé</span>':o.auto?'<span class="pill">'+(o.adj?"ajusté":"auto")+'</span>':"";
+  const badge=o.reimb?(o.reimb.done?'<span class="pill g">remboursé</span>':'<span class="pill w">à rembourser</span>'):o.est?'<span class="pill w">estimé</span>':o.auto?'<span class="pill">'+(o.adj?"ajusté":"auto")+'</span>':"";
   const act=o.est?"":o.auto?'data-act="occ" data-id="'+esc(o.id)+'"':'data-act="edit-op" data-id="'+esc(o.id)+'" data-m="'+o.d.slice(0,7)+'"';
   const amtTxt=o.cat==="virement"?eur(Math.abs(o.amt)):eurS(o.amt);
   return '<button class="row" '+act+'><div class="dot '+(isIn?"in":cr?"cr":"")+'">'+initials(o.cat)+'</div><div class="main"><div class="t">'+esc(o.label||CAT[o.cat]?.n||"Opération")+badge+'</div><div class="s">'+esc(sub.join(" · "))+'</div></div><div class="amt num '+(o.cat==="virement"?"muted":isIn?"pos":"")+'">'+amtTxt+'</div></button>';
@@ -359,6 +361,7 @@ function vHome(){
    <div class="kv"><div><div class="label">Prêts</div><div class="v num">${debtKnown?eur(debt):"—"}</div><div class="small faint">${debtKnown}/${S.loans.length} renseigné${debtKnown>1?"s":""}</div></div>
    <div><div class="label">PayPal 4x</div><div class="v num">${eur(p4Rest)}</div><div class="small faint">à venir</div></div>
    <div><div class="label">Mensualités</div><div class="v num">${eur(S.loans.filter(l=>!amort(l).end||amort(l).end>=TODAY).reduce((s,l)=>s+(num(l.monthly)||0),0))}</div><div class="small faint">par mois</div></div></div></div>
+  ${reimbCard()}
   <div class="card"><div class="sec-h"><h2>Dans les 30 prochains jours</h2></div><div class="list">${next.length?next.slice(0,8).map(o=>opRow(o,true)).join(""):'<p class="muted small">Aucune échéance prévue. Ajoute ton salaire, tes APL et tes prêts dans l\'Échéancier.</p>'}</div></div>
   <div class="card"><div class="sec-h"><h2>Dernières opérations saisies</h2><button class="btn sm ghost" data-act="tab" data-v="ops">Tout voir</button></div><div class="list">${recent.length?recent.map(o=>opRow(o,true)).join(""):'<p class="muted small">Rien pour l\'instant. Le bouton + ajoute une dépense ou un revenu.</p>'}</div></div>
   <div class="card"><div class="sec-h"><h2>Comptes et sauvegarde</h2></div>
@@ -407,7 +410,11 @@ function vAna(){
   const[from,to]=periodBounds();
   const ops=allOps(from,to,false);
   const months={},cats={};let inn=0,out=0,credit=0;
-  for(const o of ops){if(o.cat==="virement")continue;const k=o.d.slice(0,7);months[k]=months[k]||{i:0,o:0};
+  let advanced=0;
+  for(const o0 of ops){if(o0.cat==="virement"||o0.cat==="rembours")continue;
+    // Une avance à se faire rembourser ne compte que pour la part qui reste à ta charge.
+    let o=o0;if(o0.reimb){const r=Math.min(Math.abs(o0.amt),Math.abs(num(o0.reimb.amt)||0));advanced+=r;o={...o0,amt:o0.amt+r};if(!o.amt)continue}
+    const k=o.d.slice(0,7);months[k]=months[k]||{i:0,o:0};
     if(o.amt>0){months[k].i+=o.amt;inn+=o.amt}else{months[k].o-=o.amt;out-=o.amt;cats[o.cat]=(cats[o.cat]||0)-o.amt;if(CAT[o.cat]?.cr)credit-=o.amt}}
   const mk=Object.keys(months).sort().reverse();const mx=Math.max(1,...mk.map(k=>Math.max(months[k].i,months[k].o)));
   const deficit=mk.filter(k=>months[k].o>months[k].i).length;
@@ -417,7 +424,7 @@ function vAna(){
   return `<div class="chips"><button class="chip" data-act="year" data-v="all" aria-pressed="${ui.year==="all"}">Tout</button>${years.map(y=>`<button class="chip" data-act="year" data-v="${y}" aria-pressed="${ui.year===y}">${y}</button>`).join("")}</div>
   <div class="card"><div class="sec-h"><h2>Évolution du solde total</h2><span class="small muted num">${eur(sStart)} → <b class="${sEnd<0?"neg":""}">${eur(sEnd)}</b></span></div>${lineChart(series,{limit:-S.accounts.reduce((t,a)=>t+od(a),0)})}</div>
   <div class="card"><div class="kv"><div><div class="label">Entrées</div><div class="v num pos">${eur(inn)}</div></div><div><div class="label">Sorties</div><div class="v num">${eur(out)}</div></div><div><div class="label">Différence</div><div class="v num ${inn-out<0?"neg":"pos"}">${eurS(inn-out)}</div></div></div>
-   <p class="small muted" style="margin:10px 0 0">${inn>0?`<b>${Math.round(credit/inn*100)} %</b> de tes entrées sont parties en remboursements de crédits et PayPal (${eur(credit)}). `:""}${mk.length?`${deficit} mois sur ${mk.length} où tu as dépensé plus que ce qui est rentré.`:""}</p></div>
+   <p class="small muted" style="margin:10px 0 0">${inn>0?`<b>${Math.round(credit/inn*100)} %</b> de tes entrées sont parties en remboursements de crédits et PayPal (${eur(credit)}). `:""}${mk.length?`${deficit} mois sur ${mk.length} où tu as dépensé plus que ce qui est rentré.`:""}${advanced?` Les ${eur(advanced)} avancés pour d'autres ne sont pas comptés dans tes dépenses.`:""}</p></div>
   <div class="card"><div class="sec-h"><h2>Où part l'argent</h2></div>${cl.length?cl.map(([c,v])=>`<div style="padding:6px 0"><div style="display:flex;justify-content:space-between;gap:8px" class="small"><span>${esc(CAT[c]?.n||c)}${CAT[c]?.cr?' <span class="pill w">crédit</span>':""}</span><span class="num"><b>${eur(v)}</b> <span class="faint">${out?Math.round(v/out*100):0} %</span></span></div><div class="bar ${CAT[c]?.cr?"cr":""}" style="margin-top:4px"><i style="width:${(v/cmax*100).toFixed(1)}%"></i></div></div>`).join(""):'<p class="muted small">Aucune dépense sur cette période.</p>'}</div>
   <div class="card"><div class="sec-h"><h2>Mois par mois</h2><span class="small faint"><span class="pos">■</span> entrées <span class="neg">■</span> sorties</span></div>${mk.length?mk.map(k=>{const m=months[k],n=m.i-m.o;return `<div class="mrow"><span class="small" style="text-transform:capitalize">${fmonthS(k)}</span><div class="bars"><span class="bi" style="width:${(m.i/mx*100).toFixed(1)}%"></span><span class="bo" style="width:${(m.o/mx*100).toFixed(1)}%"></span></div><span class="small num ${n<0?"neg":"pos"}" style="text-align:right">${eurS(n)}</span></div>`}).join(""):'<p class="muted small">Rien à afficher.</p>'}</div>`;
 }
@@ -484,14 +491,21 @@ function sheetOp(o){
     <label class="fld"><span>${kind==="tr"?"Depuis":"Compte"}</span><select id="fAcc">${accOpts(o.acc)}</select></label></div>
     ${kind==="tr"?`<label class="fld"><span>Vers</span><select id="fTo">${accOpts(o.to||S.accounts.find(a=>a.id!==o.acc)?.id)}</select></label>`:`<label class="fld"><span>Catégorie</span><select id="fCat">${catOpts(o.cat,kind)}</select></label>`}
     <label class="fld"><span>Libellé</span><input id="fLab" value="${esc(o.label)}" placeholder="${kind==="in"?"ex. Salaire octobre":"ex. Carrefour, Uber, Netflix…"}" autocomplete="off"></label>
+    ${kind==="out"?`<label class="chk"><input type="checkbox" id="fRb" ${o.reimb?"checked":""}> À me faire rembourser</label>
+    <div class="two" id="fRbBox" ${o.reimb?"":"hidden"}><label class="fld"><span>Par qui</span><input id="fRbWho" value="${esc(o.reimb?.who||"")}" placeholder="ex. Maman, Sarah, mutuelle" autocomplete="off"></label>
+    <label class="fld"><span>Montant attendu (€)</span><input id="fRbAmt" inputmode="decimal" value="${o.reimb?.amt?String(o.reimb.amt).replace(".",","):""}" placeholder="tout"></label></div>${o.reimb?.done?`<div class="small muted" style="display:flex;align-items:center;justify-content:space-between;gap:8px">Remboursée le ${fdate(o.reimb.doneDate||o.d)}<button class="btn sm plain" type="submit" value="unmark">Remettre en attente</button></div>`:""}`:""}
     <div class="btns"><button class="btn" type="submit" value="save">Enregistrer</button>${ed?'<button class="btn danger" type="submit" value="del">Supprimer</button>':'<button class="btn ghost" type="submit" value="more">Enregistrer et continuer</button>'}<button class="btn plain" type="button" data-act="close">Annuler</button></div></form>`,submit);
+    const rb=$("#fRb");if(rb)rb.addEventListener("change",()=>{$("#fRbBox").hidden=!rb.checked});
     $("#sheet .seg").addEventListener("click",e=>{const b=e.target.closest("[data-kind]");if(!b)return;const keep={amt:val("fAmt"),d:val("fDate"),acc:val("fAcc"),label:val("fLab")};kind=b.dataset.kind;o=Object.assign({},o,{amt:num(keep.amt)||0,d:keep.d,acc:keep.acc,label:keep.label,cat:kind==="in"?"salaire":kind==="tr"?"virement":"courses"});draw()});
   };
   const submit=v=>{
     if(v==="del"){removeOp(o);closeSheet();toast("Opération supprimée");return}
+    if(v==="unmark"){setOp({...o,reimb:{...o.reimb,done:false,doneDate:null}});closeSheet();render();toast("Remis en attente");return}
     const a=num(val("fAmt")),d=val("fDate");if(!(a>0))return fail("Indique un montant supérieur à 0.");if(!d)return fail("Choisis une date.");
     const n={id:ed?o.id:uid(),d,acc:val("fAcc"),amt:kind==="out"?-a:a,cat:kind==="tr"?"virement":val("fCat"),label:val("fLab")};
     if(kind==="tr"){n.to=val("fTo");if(n.to===n.acc)return fail("Choisis deux comptes différents.")}
+    if(kind==="out"&&$("#fRb")?.checked){const ra=num(val("fRbAmt"));if(ra>a)return fail("Le montant attendu ne peut pas dépasser la dépense.");
+      n.reimb=Object.assign({},o.reimb||{done:false},{who:val("fRbWho"),amt:ra>0?ra:a})}
     if(ed)removeOp(o,true);
     const k=d.slice(0,7);S.months[k]=(S.months[k]||[]).concat(n);saveMonth(k);
     ui.lastDate=d;ui.lastAcc=n.acc;render();
@@ -502,6 +516,26 @@ function sheetOp(o){
 function removeOp(o,silent){const k=o.d.slice(0,7);S.months[k]=(S.months[k]||[]).filter(x=>x.id!==o.id);saveMonth(k);if(!silent)render()}
 function findOp(id,m){return(S.months[m]||[]).find(x=>x.id===id)}
 
+function pendingReimb(){const out=[];for(const k in S.months)for(const o of S.months[k])if(o.reimb&&!o.reimb.done)out.push(o);return out.sort((a,b)=>a.d<b.d?-1:1)}
+function reimbCard(){const l=pendingReimb();if(!l.length)return "";const t=l.reduce((s,o)=>s+(num(o.reimb.amt)||0),0);
+  return `<div class="card"><div class="sec-h"><h2>On te doit</h2><span class="num"><b>${eur(t)}</b></span></div><div class="list">${l.map(o=>`<button class="row" data-act="reimb" data-id="${esc(o.id)}" data-m="${o.d.slice(0,7)}"><div class="dot">${initials(o.cat)}</div><div class="main"><div class="t">${esc(o.reimb.who||"À rembourser")}</div><div class="s">${esc(fdate(o.d)+" · "+(o.label||CAT[o.cat]?.n||""))}</div></div><div class="amt num">${eur(num(o.reimb.amt))}</div></button>`).join("")}</div><p class="small faint" style="margin:8px 0 0">Touche une ligne quand tu as été remboursée. Ces sommes ne sont pas comptées dans les prévisions tant qu'elles ne sont pas reçues.</p></div>`}
+function setOp(o){const k=o.d.slice(0,7);S.months[k]=(S.months[k]||[]).map(x=>x.id===o.id?o:x);saveMonth(k)}
+function sheetReimb(o){
+  const r=o.reimb;
+  openSheet(`<h2>${esc(r.who||"Remboursement")}</h2><p class="muted small" style="margin:-6px 0 12px">${esc(fdate(o.d)+" · "+(o.label||CAT[o.cat]?.n||"")+" · dépense de "+eur(Math.abs(o.amt)))}</p><form class="f">
+   <div class="two"><label class="fld"><span>Montant reçu (€)</span><input id="rbA" inputmode="decimal" value="${String(num(r.amt)).replace(".",",")}"></label>
+   <label class="fld"><span>Reçu le</span><input id="rbD" type="date" value="${TODAY}"></label></div>
+   <label class="fld"><span>Sur le compte</span><select id="rbAcc">${accOpts(o.acc)}</select></label>
+   <div class="btns"><button class="btn" type="submit" value="add">Ajouter le remboursement reçu</button><button class="btn plain" type="submit" value="mark">Déjà saisi, marquer remboursé</button></div>
+   <button class="btn ghost" type="submit" value="edit">Modifier la dépense</button></form>`,v=>{
+    if(v==="edit"){closeSheet();return sheetOp(o)}
+    const n={...o,reimb:{...r,done:true,doneDate:val("rbD")||TODAY}};
+    if(v==="add"){const a=num(val("rbA"));if(!(a>0))return fail("Indique le montant reçu.");
+      const inc={id:uid(),d:val("rbD")||TODAY,acc:val("rbAcc"),amt:a,cat:"rembours",label:"Remboursement"+(r.who?" de "+r.who:"")+(o.label?" · "+o.label:"")};
+      n.reimb.recId=inc.id;const k=inc.d.slice(0,7);S.months[k]=(S.months[k]||[]).concat(inc);saveMonth(k)}
+    setOp(n);closeSheet();render();toast("Marqué remboursé");
+  });
+}
 function sheetAcc(a){
   const ed=!!a;a=a||{name:S.accounts.length?"":"Compte courant",card:"",openDate:TODAY,openBal:""};
   openSheet(`<h2>${ed?"Modifier le compte":"Nouveau compte"}</h2><form class="f">
@@ -670,6 +704,7 @@ document.addEventListener("click",e=>{
   else if(a==="add-op"){if(S.accounts.length)sheetOp()}
   else if(a==="edit-op"){const o=findOp(id,b.dataset.m);if(o)sheetOp(o)}
   else if(a==="occ")sheetOcc(id);
+  else if(a==="reimb"){const o=findOp(id,b.dataset.m);if(o)sheetReimb(o)}
   else if(a==="add-acc")sheetAcc();
   else if(a==="edit-acc")sheetAcc(S.accounts.find(x=>x.id===id));
   else if(a==="add-loan")sheetLoan();

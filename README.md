@@ -3,6 +3,7 @@
 App téléphone pour faire ses comptes : comprendre l'historique, puis prévoir les dépenses à venir.
 
 - **Comptes** : tu donnes le solde de chaque compte à une date que tu connais et son découvert autorisé, puis tu déclares tes opérations avant et après. Le solde est recalculé jour par jour.
+- **Avances à se faire rembourser** : une dépense peut être cochée « À me faire rembourser » (par qui, combien). L'accueil liste ce qu'on te doit ; une fois remboursée, l'app ajoute le remboursement reçu. L'analyse ne compte que la part restée à ta charge.
 - **Échéancier** : prêts (étudiants, renouvelable, conso), salaire, aide familiale, APL, charges fixes et achats PayPal en 4 fois. Leurs prélèvements sont ajoutés automatiquement, sur le passé comme sur le futur. Un mois différent se corrige en touchant la ligne.
 - **Analyse** : évolution du solde, dépenses par catégorie, part des revenus partie en crédits, mois dans le rouge.
 - **Prévisions** : solde prévu jusqu'à 2 ans, date d'un éventuel découvert, fins de crédits.
